@@ -2,7 +2,7 @@
 This analysis was conducted using polling data from the 2016 United States Presidential Election to try to predict which candidate would win each state's electoral college votes. Further information and analysis can be found in `report.pdf`
 
 ## Report Rundown
-* Model was 86.4% accurate in predicting which candidate a state's electoral votes would go towards
+* Model was 86.5% accurate in predicting which candidate a state's electoral votes would go towards
 * Struggled in the Midwest with swing states
 * Ultimately predicted Donald Trump to have 226 E.C. votes and lose which in fact did not happen
 
