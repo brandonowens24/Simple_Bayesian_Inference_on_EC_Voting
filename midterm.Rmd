@@ -18,7 +18,7 @@ library(ggplot2)
 
 ## Import Polling Data and Cleaning
 ```{r ignore_outside_parties}
-polls <- read.csv("presidential_polls.csv")
+polls <- read.csv("csvs/presidential_polls.csv")
  
 total_sum = sum(polls$rawpoll_trump) + sum(polls$rawpoll_clinton)
 
@@ -211,7 +211,7 @@ Simulate 10,000 values for each candidate for each state and plot their posterio
 
 
 ```{r determine_state_electoral_college_votes}
-ec <- read.csv("Electoral_College.csv")
+ec <- read.csv("csvs/Electoral_College.csv")
 ec <- filter(ec, Year == 2016)
 ec <- ec %>% mutate(State = ifelse(State == "D.C.", "District of Columbia", State))
 ec
