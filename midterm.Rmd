@@ -1,0 +1,241 @@
+---
+title: "Presidential Election: Bayesian Inference"
+author: "Brandon Owens"
+date: "2024-03-01"
+output: html_document
+---
+##Set Up Project, Obtain Data
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r import_libraries}
+library(dplyr)
+library(nflfastR)
+library(ggplot2)
+```
+
+```{r ignore_outside_parties}
+polls <- read.csv("presidential_polls.csv")
+ 
+total_sum = sum(polls$rawpoll_trump) + sum(polls$rawpoll_clinton)
+
+
+polls$norm_trump <- (polls$rawpoll_trump / total_sum) * 10000
+polls$norm_clinton <- (polls$rawpoll_clinton / total_sum) * 10000
+
+polls$state <-as.factor(polls$state)
+
+```
+
+```{r see_poll_locations}
+levels(polls$state)
+```
+
+```{r group_state}
+polls$state <- gsub("Nebraska CD-1|Nebraska CD-2|Nebraska CD-3", "Nebraska", polls$state)
+polls$state <- gsub("Maine CD-1|Maine CD-2", "Maine", polls$state)
+polls$state <-as.factor(polls$state)
+levels(polls$state)
+
+polls <- polls[polls$grade == c("A", "A-", "A+", "B", "B+", "B-"), ]
+```
+
+```{r determine_sample_values, message=FALSE, warning=FALSE}
+state_grouping <- polls  %>%
+  group_by(state) %>%
+  summarize(state = state, 
+            trump_mean = mean(norm_trump, na.rm = TRUE),
+            clinton_mean = mean(norm_clinton, na.rm = TRUE),
+            trump_var = var(norm_trump, na.rm = TRUE), 
+            clinton_var = var(norm_clinton, na.rm = TRUE)) %>%
+  distinct(state, .keep_all = TRUE)
+
+state_grouping
+
+```
+
+
+```{r determine_regions}
+states <- c(levels(state_grouping$state))
+regions <- c("farwest", "rockies", "southwest", "southeast", "plains", "gl", "mideast", "ne")
+
+farwest <- c("Washington", "Oregon", "Nevada", "California", "Alaska", "Hawaii", "U.S.")
+rockies <- c("Montana", "Idaho", "Wyoming", "Utah", "Colorado", "U.S.")
+southwest <- c("Arizona", "New Mexico", "Texas", "Oklahoma", "U.S.")
+southeast <- c("Arkansas", "Louisiana", "Mississippi", "Alabama", "Georgia", "South Carolina", "North Carolina", "Florida", "Tennessee", "Kentucky", "West Virginia", "Virginia", "U.S.")
+plains <- c("North Dakota", "South Dakota", "Nebraska", "Kansas", "Missouri", "Iowa", "Minnesota")
+gl <- c("Wisconsin", "Michigan", "Illinois", "Indiana", "Ohio", "U.S.")
+mideast <- c("District of Columbia", "Pennsylvania", "New York", "New Jersey", "Delaware", "Maryland", "U.S.")
+ne <- c("Vermont", "New Hampshire", "Connecticut", "Rhode Island", "Massachusetts", "Maine", "U.S.")
+```
+
+
+```{r find_prior_params}
+priors <- data.frame(column1=character(),
+                            column2=character(),
+                            column3=numeric(),
+                            column4=numeric(),
+                            column5=numeric(),
+                            column6=numeric())
+
+for (region in regions){
+  region_states <- get(region)
+  
+  for (sel_state in region_states){
+    polls_region = polls[polls$state %in% region_states, ]
+    
+    regional_states_polls = polls_region[polls_region$state != sel_state, ]
+    trump_prior_var = var(regional_states_polls$norm_trump)
+    clinton_prior_var = var(regional_states_polls$norm_trump)
+    
+    regional_states_df = state_grouping[state_grouping$state %in% region_states, ]
+    regional_states_df$region <- region
+   
+
+    tmp_state_df <- regional_states_df[regional_states_df$state != sel_state, ] %>%
+      group_by(region) %>%
+      summarise(state = sel_state,
+        trump_prior_mean = mean(trump_mean), 
+        clinton_prior_mean = mean(clinton_mean),
+        trump_prior_var = trump_prior_var,
+        clinton_prior_var = clinton_prior_var)
+    
+    priors <- rbind(priors, tmp_state_df)
+  }
+}
+```
+
+
+```{r ignore_US_poll}
+prior = priors[priors$state != "U.S.",]
+state_grouping = state_grouping[state_grouping$state != "U.S.",]
+```
+
+```{r view_dfs}
+prior
+state_grouping
+```
+
+```{r posteriors}
+states <- states[states != "U.S."]
+state_counts<- table(polls$state)
+result_df <- data.frame(state = character(),
+                        post_mean_trump = numeric(),
+                        post_var_trump = numeric(),
+                        post_mean_clinton = numeric(),
+                        post_var_clinton = numeric())
+
+for (state in states){
+  n_count <- as.numeric(state_counts[state])
+
+  trump_sample_mean <- state_grouping[state_grouping$state == state, ]$trump_mean
+  trump_sample_var <- state_grouping[state_grouping$state == state, ]$trump_var
+  clinton_sample_mean <- state_grouping[state_grouping$state == state, ]$clinton_mean
+  clinton_sample_var <- state_grouping[state_grouping$state == state, ]$clinton_var
+  trump_prior_mean <- prior[prior$state == state, ]$trump_prior_mean
+  trump_prior_var <- prior[prior$state == state, ]$trump_prior_var
+  clinton_prior_mean <- prior[prior$state == state, ]$clinton_prior_mean
+  clinton_prior_mean <- prior[prior$state == state, ]$clinton_prior_var
+  
+  
+  
+  post_mean_trump <- ((((1/trump_prior_var)*trump_prior_mean) + ((n_count/trump_sample_var)*trump_sample_mean))) / (((1/trump_prior_var) + (n_count/trump_sample_var)))
+  
+  post_var_trump <- 1/((1/trump_prior_var) + (n_count/trump_sample_var))
+
+  post_mean_clinton <- ((((1/clinton_prior_var)*clinton_prior_mean) + ((n_count/clinton_sample_var)*clinton_sample_mean))) / (((1/clinton_prior_var) + (n_count/clinton_sample_var)))
+  
+  post_var_clinton <- 1/((1/clinton_prior_var) + (n_count/clinton_sample_var))
+
+  temp_df <- data.frame(state = state, 
+                        post_mean_trump = post_mean_trump, 
+                        post_var_trump = post_var_trump,
+                        post_mean_clinton = post_mean_clinton,
+                        post_var_clinton = post_var_clinton)
+  result_df <- rbind(result_df, temp_df)
+}
+```
+
+
+
+```{r posterior_df_view}
+result_df
+```
+
+```{r plot_posteriors_and_sample}
+predict_ec <- data.frame(State = character(),
+                         tp = numeric(),
+                         cp = numeric())
+
+for (state in states) {
+  state_dist <- result_df[result_df$state == state, ]
+  trump <- rnorm(10000, state_dist$post_mean_trump, sqrt(result_df$post_var_trump))
+  clinton <- rnorm(10000, state_dist$post_mean_clinton, sqrt(result_df$post_var_clinton))
+
+  dist_df <- data.frame(trump, clinton)
+  
+  p <- ggplot(dist_df) + 
+    geom_density(aes(x=trump), color = "red", adjust = 2) + 
+    geom_density(aes(x = clinton), color = "blue", adjust = 2) +
+    labs(title = paste(state), x = "Theta")
+  
+  print(p)
+  
+  
+
+  x_trump <- sample(trump, 1000, replace = TRUE)
+  x_clinton <- sample(clinton, 1000, replace = TRUE)
+  
+  predict_ec <- rbind(predict_ec, data.frame(State = state, tp = x_trump, cp = x_clinton))
+  
+  # ggsave(paste("density_plot_", state, ".png", sep = ""), plot = p, width = 10, height = 6)
+}
+
+```
+
+```{r determine_state_electoral_college_votes}
+ec <- read.csv("Electoral_College.csv")
+ec <- filter(ec, Year == 2016)
+ec <- ec %>% mutate(State = ifelse(State == "D.C.", "District of Columbia", State))
+ec
+```
+```{r predict_winner}
+predict_ec$State <- as.factor(predict_ec$State)
+
+ec_results <- predict_ec %>%
+  mutate(outcome = ifelse(tp>cp, 1, 0)) %>%
+  group_by(State) %>%
+  summarize(Winner = ifelse((sum(outcome) > 500), "Trump", "Clinton"))
+
+simulated_election_results <- merge(ec_results, ec, by="State") %>%
+  group_by(Winner) %>%
+  summarize(Electoral_College_Votes = sum(Votes))
+
+ec_results
+simulated_election_results
+```
+```{r}
+acc <- predict_ec %>%
+  mutate(outcome = ifelse(tp>cp, 1, 0)) %>%
+  group_by(State) %>%
+  summarize(Trump_Win = sum(outcome),
+            Clinton_Win = 1000 - Trump_Win)
+
+acc$Winner <- c("T", "T", "T", "T", "C", "C", "C", "C", "C", "T", "T", "C", "T", "C",
+                "T", "T", "T", "T", "T", "C", "C", "C", "T", "C", "T", "T", "T",
+                "T", "C", "C", "C", "C", "C", "T", "T", "T", "T", "C", "T", "C", "T", "T", 
+                "T", "T", "T", "C", "C", "C", "T", "T", "T")
+
+accuracy <- acc %>%
+  mutate(TCorrect = ifelse(Winner == "T", Trump_Win, 0), 
+         CCorrect = ifelse(Winner == "C", Clinton_Win, 0)) %>%
+  summarize(Total_Acc = sum(TCorrect + CCorrect) / (51000))
+
+accuracy
+```
+
+
+
+
