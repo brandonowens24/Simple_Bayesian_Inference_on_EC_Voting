@@ -4,18 +4,19 @@ author: "Brandon Owens"
 date: "2024-03-01"
 output: html_document
 ---
-##Set Up Project, Obtain Data
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Import Necessary Libraries
 ```{r import_libraries}
 library(dplyr)
 library(nflfastR)
 library(ggplot2)
 ```
 
+## Import Polling Data and Cleaning
 ```{r ignore_outside_parties}
 polls <- read.csv("presidential_polls.csv")
  
@@ -28,10 +29,15 @@ polls$norm_clinton <- (polls$rawpoll_clinton / total_sum) * 10000
 polls$state <-as.factor(polls$state)
 
 ```
+Imported polling data. Normalized all raw scores for only Trump and Clinton. This analysis will ignore the other candidates!
+Also changed the states to factors so that I can group them later. 
+
 
 ```{r see_poll_locations}
 levels(polls$state)
 ```
+Some states have multiple sub polls as seen by the levels of the factor. I just want all of the subpolls to be identified as belonging to that state. 
+
 
 ```{r group_state}
 polls$state <- gsub("Nebraska CD-1|Nebraska CD-2|Nebraska CD-3", "Nebraska", polls$state)
@@ -41,7 +47,9 @@ levels(polls$state)
 
 polls <- polls[polls$grade == c("A", "A-", "A+", "B", "B+", "B-"), ]
 ```
+Here, I made the sub polls in Nebraska and Maine associated with the state and removed all polling that didn't at least have a "B-" grade.
 
+## Grabbing Sample Means and Variances for Both Candidates
 ```{r determine_sample_values, message=FALSE, warning=FALSE}
 state_grouping <- polls  %>%
   group_by(state) %>%
@@ -55,22 +63,23 @@ state_grouping <- polls  %>%
 state_grouping
 
 ```
+Utilizing the state grouping, I grab each candidates sample mean and sample variance that will be later used in the posteriors for each individual state.
 
-
+## Setting Up Priors
 ```{r determine_regions}
 states <- c(levels(state_grouping$state))
 regions <- c("farwest", "rockies", "southwest", "southeast", "plains", "gl", "mideast", "ne")
 
-farwest <- c("Washington", "Oregon", "Nevada", "California", "Alaska", "Hawaii", "U.S.")
-rockies <- c("Montana", "Idaho", "Wyoming", "Utah", "Colorado", "U.S.")
-southwest <- c("Arizona", "New Mexico", "Texas", "Oklahoma", "U.S.")
-southeast <- c("Arkansas", "Louisiana", "Mississippi", "Alabama", "Georgia", "South Carolina", "North Carolina", "Florida", "Tennessee", "Kentucky", "West Virginia", "Virginia", "U.S.")
+farwest <- c("Washington", "Oregon", "Nevada", "California", "Alaska", "Hawaii")
+rockies <- c("Montana", "Idaho", "Wyoming", "Utah", "Colorado")
+southwest <- c("Arizona", "New Mexico", "Texas", "Oklahoma")
+southeast <- c("Arkansas", "Louisiana", "Mississippi", "Alabama", "Georgia", "South Carolina", "North Carolina", "Florida", "Tennessee", "Kentucky", "West Virginia", "Virginia")
 plains <- c("North Dakota", "South Dakota", "Nebraska", "Kansas", "Missouri", "Iowa", "Minnesota")
-gl <- c("Wisconsin", "Michigan", "Illinois", "Indiana", "Ohio", "U.S.")
-mideast <- c("District of Columbia", "Pennsylvania", "New York", "New Jersey", "Delaware", "Maryland", "U.S.")
-ne <- c("Vermont", "New Hampshire", "Connecticut", "Rhode Island", "Massachusetts", "Maine", "U.S.")
+gl <- c("Wisconsin", "Michigan", "Illinois", "Indiana", "Ohio")
+mideast <- c("District of Columbia", "Pennsylvania", "New York", "New Jersey", "Delaware", "Maryland")
+ne <- c("Vermont", "New Hampshire", "Connecticut", "Rhode Island", "Massachusetts", "Maine")
 ```
-
+I would like the prior distributions to be based off of surrounding geography for each state. Here we break up the U.S. into respective regions based on geographical areas.
 
 ```{r find_prior_params}
 priors <- data.frame(column1=character(),
@@ -106,17 +115,21 @@ for (region in regions){
   }
 }
 ```
+Creating a data frame that includes the prior means and variances for each candidate for each state. The priors are based on the means and variances for all surrounding states in the region excluding the state we are obtaining the parameters for.
 
 
 ```{r ignore_US_poll}
 prior = priors[priors$state != "U.S.",]
 state_grouping = state_grouping[state_grouping$state != "U.S.",]
 ```
+We are going to ignore the national polls
+
 
 ```{r view_dfs}
 prior
 state_grouping
 ```
+Obtain a quick view of the data frames
 
 ```{r posteriors}
 states <- states[states != "U.S."]
@@ -157,7 +170,7 @@ for (state in states){
   result_df <- rbind(result_df, temp_df)
 }
 ```
-
+Determine posterior means and variances for each candidate for each state using conjugate normal poseterior.
 
 
 ```{r posterior_df_view}
@@ -190,10 +203,12 @@ for (state in states) {
   
   predict_ec <- rbind(predict_ec, data.frame(State = state, tp = x_trump, cp = x_clinton))
   
-  # ggsave(paste("density_plot_", state, ".png", sep = ""), plot = p, width = 10, height = 6)
+  ggsave(paste("density_plot_", state, ".png", sep = ""), plot = p, width = 10, height = 6)
 }
 
 ```
+Simulate 10,000 values for each candidate for each state and plot their posteriors. With resampling, sample 1,000 of these voter percentages for each candidate and put them in a dataframe for each state for future usage.
+
 
 ```{r determine_state_electoral_college_votes}
 ec <- read.csv("Electoral_College.csv")
@@ -216,6 +231,9 @@ simulated_election_results <- merge(ec_results, ec, by="State") %>%
 ec_results
 simulated_election_results
 ```
+If Trump had a higher percentage for a state than Clinton, he will win that state and Vice Versa. Calculate who has more wins for each state and that candidate will win the state. This will simulate who would win the election. Here, Clinton wins with 312 votes.
+
+
 ```{r}
 acc <- predict_ec %>%
   mutate(outcome = ifelse(tp>cp, 1, 0)) %>%
@@ -235,7 +253,7 @@ accuracy <- acc %>%
 
 accuracy
 ```
-
+ Calculating model accuracy by seeing for each state out of our 1000 simulates how many times the candidate that actually won that state won in our simulations. The model was ~86.5% accurate!
 
 
 
