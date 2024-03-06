@@ -131,6 +131,9 @@ state_grouping
 ```
 Obtain a quick view of the data frames
 
+
+# Bayesian Data Analysis
+## Calculate Posterior mean and variance
 ```{r posteriors}
 states <- states[states != "U.S."]
 state_counts<- table(polls$state)
@@ -177,6 +180,7 @@ Determine posterior means and variances for each candidate for each state using 
 result_df
 ```
 
+## Simulate 10,000 Values for Posterior Distribution
 ```{r plot_posteriors_and_sample}
 predict_ec <- data.frame(State = character(),
                          tp = numeric(),
@@ -207,15 +211,17 @@ for (state in states) {
 }
 
 ```
+1,000 samples taken with resampling from the 10,000 generated values. These will be used to see which candidate will win the election from sampled 1,000 elections. 
 Simulate 10,000 values for each candidate for each state and plot their posteriors. With resampling, sample 1,000 of these voter percentages for each candidate and put them in a dataframe for each state for future usage.
 
-
+## Load In Electoral College Dataset 
 ```{r determine_state_electoral_college_votes}
 ec <- read.csv("csvs/Electoral_College.csv")
 ec <- filter(ec, Year == 2016)
 ec <- ec %>% mutate(State = ifelse(State == "D.C.", "District of Columbia", State))
 ec
 ```
+## Predict Electoral College Voting
 ```{r predict_winner}
 predict_ec$State <- as.factor(predict_ec$State)
 
