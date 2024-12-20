@@ -1,5 +1,5 @@
 # Simple Bayesian Model to Determine Electoral College Voting
-This analysis was conducted using polling data from the 2016 United States Presidential Election to try to predict which candidate would win each state's electoral college votes. Further information and analysis can be found in `report.pdf`
+This analysis was conducted using polling data from the 2016 United States Presidential Election to try to predict which candidate would win each state's electoral college votes. Further information and analysis can be found in the [report](https://github.com/brandonowens24/Simple_Bayesian_Inference_on_EC_Voting/blob/main/report.pdf).
 
 ## Report Rundown
 * Data from https://www.kaggle.com/datasets/fivethirtyeight/2016-election-polls
